@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.test.client import Client, FakePayload
 
-import oauth2 as oauth
+import oauth2
 from mock import Mock, patch
 from nose.tools import eq_
 from mkt.api.models import Access, generate
@@ -37,7 +37,7 @@ class OAuthClient(Client):
     but even more. And it can magically sign requests.
     TODO (andym): this could be cleaned up and split out, it's useful.
     """
-    signature_method = oauth.SignatureMethod_HMAC_SHA1()
+    signature_method = oauth2.SignatureMethod_HMAC_SHA1()
 
     def __init__(self, access, api_name='apps'):
         super(OAuthClient, self).__init__(self)
@@ -52,7 +52,7 @@ class OAuthClient(Client):
         parsed = urlparse.urlparse(url)
         args = dict(urlparse.parse_qs(parsed.query))
 
-        req = oauth.Request.from_consumer_and_token(self.access,
+        req = oauth2.Request.from_consumer_and_token(self.access,
             token=None, http_method=method,
             http_url=urlparse.urlunparse(parsed._replace(query='')),
             parameters=args)
