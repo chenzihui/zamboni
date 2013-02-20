@@ -6,12 +6,13 @@ import uuid
 from mock import patch
 from nose.tools import eq_
 
-
 from django.conf import settings
 from django.test import client
 
 from amo.tests import TestCase
 from mkt.api.tests.test_oauth import BaseOAuth
+from mkt.site.fixtures import fixture
+
 from .models import record_stat, MonolithRecord
 
 
@@ -60,9 +61,11 @@ class TestModels(TestCase):
 
 @patch.object(settings, 'SITE_URL', 'http://api/')
 class TestMonolithResource(BaseOAuth):
+    fixtures = fixture('user_2519')
 
     def setUp(self):
         super(TestMonolithResource, self).setUp(api_name='monolith')
+        self.grant_permission(self.profile, 'Monolith:API')
         self.list_url = ('api_dispatch_list', {'resource_name': 'data'})
         self.get_url = ('api_dispatch_detail', {'resource_name': 'data'})
         self.now = datetime.datetime(2013, 02, 12, 17, 34)
@@ -92,6 +95,7 @@ class TestMonolithResource(BaseOAuth):
 
         res = self.client.get(self.list_url,
                               data={'recorded__lte': self.now.isoformat()})
+        eq_(res.status_code, 200)
         data = json.loads(res.content)
         eq_(len(data['objects']), 3)
 

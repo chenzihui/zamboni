@@ -1,5 +1,10 @@
+import logging
+import json
+
+from mkt.api.authentication import (PermissionAuthorization,
+                                    MarketplaceAuthentication)
+
 from mkt.api.base import MarketplaceResource
-from tastypie.authorization import Authorization
 
 from .models import MonolithRecord
 
@@ -13,7 +18,8 @@ class MonolithData(MarketplaceResource):
         filtering = {'recorded': ['exact', 'lt', 'lte', 'gt', 'gte'],
                      'key': ['exact'],
                      'id': ['lte', 'gte']}
-        authorization = Authorization()  # We want to bypass authz
+        authorization = PermissionAuthorization('Monolith', 'API')
+        authentication = MarketplaceAuthentication()
 
     def obj_delete_list(self, request=None, **kwargs):
         filters = self.build_filters(request.GET)
