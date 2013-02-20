@@ -8,6 +8,8 @@ from mkt.api.base import MarketplaceResource
 
 from .models import MonolithRecord
 
+logger = logging.getLogger(__name__)
+
 
 class MonolithData(MarketplaceResource):
 
@@ -23,7 +25,9 @@ class MonolithData(MarketplaceResource):
 
     def obj_delete_list(self, request=None, **kwargs):
         filters = self.build_filters(request.GET)
-        object_list = self.get_object_list(request).filter(**filters)
+        qs = self.get_object_list(request).filter(**filters)
+        logger.info('deleting %d monolith resources' % qs.count())
+        qs.delete()
 
         for obj in object_list:
             obj.delete()
