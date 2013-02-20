@@ -89,6 +89,9 @@ class TestMonolithResource(BaseOAuth):
 
         eq_(len(data['objects']), 1)
 
+        # we also want to test that the data is correct JSON
+        eq_(data['objects'][0]['value']['value'], 2)
+
     def test_filter_by_date(self):
         for id_, date in enumerate((self.last_week, self.yesterday, self.now)):
             record_stat('app.install', self.request, recorded=date, value=id_)

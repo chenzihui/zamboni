@@ -29,5 +29,5 @@ class MonolithData(MarketplaceResource):
         logger.info('deleting %d monolith resources' % qs.count())
         qs.delete()
 
-        for obj in object_list:
-            obj.delete()
+    def dehydrate_value(self, bundle):
+        return json.loads(bundle.data['value'])
