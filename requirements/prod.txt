@@ -107,3 +107,6 @@ tower==0.3.4
 -e git://github.com/jbalogh/django-mobility.git@e2b60a1f96e4c4aed736395c01bf707e969d8e83#egg=django-mobility
 -e git://github.com/jbalogh/jingo.git@b4ecca1066bcd1eac87358b4c82902442d4eedc4#egg=jingo
 -e git://github.com/andymccurdy/redis-py.git@79d22358410936358c71c88abbdb2a26e3cedc28#egg=redis-py
+
+# temporary
+-e git://github.com/mozilla/monolith-client.git@ff0d4f2117f44e86b2bbce23ae33a08283f60970#egg=monolith-client

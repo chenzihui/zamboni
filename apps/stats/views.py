@@ -4,6 +4,7 @@ import itertools
 import time
 from types import GeneratorType
 from datetime import date, timedelta
+import threading
 
 from django import http
 from django.conf import settings
@@ -24,6 +25,10 @@ from addons.decorators import addon_view, addon_view_factory
 from addons.models import Addon
 from bandwagon.models import Collection
 from bandwagon.views import get_collection
+from monolith.client import Client as MonolithClient
+
+import requests
+import waffle
 from zadmin.models import SiteEvent
 
 import amo
@@ -461,8 +466,18 @@ def daterange(start_date, end_date):
         yield start_date + timedelta(n)
 
 
-@memoize(prefix='global_stats', time=60 * 60)
-def _site_query(period, start, end):
+def _get_monolith_client():
+    _locals = threading.local()
+    if not hasattr(_locals, 'monolith'):
+        server = settings.MONOLITH_SERVER
+        # XXX will use later
+        max_range = getattr(settings, 'MONOLITH_MAX_DATE_RANGE', 365)
+        _locals.monolith = MonolithClient(server)
+
+    return _locals.monolith
+
+
+def _monolith_site_query(period, start, end, field):
     # Cached lookup of the keys and the SQL.
     # Taken from remora, a mapping of the old values.
     keys = {
@@ -480,6 +495,56 @@ def _site_query(period, start, end):
         'review_count_new': 'reviews_created',
         'collection_count_new': 'collections_created',
     }
+
+    # conversion
+    origin = field
+    fields = {'mmo_total_visitors': 'visits',
+              'apps_count_installed': 'app_installs',
+              'apps_review_count_new': 'review_count',
+              'mmo_user_count_new': 'user_count',
+              'apps_count_new': 'app_count'}
+
+    field = fields[field]
+
+    # getting data from the monolith server
+    client = _get_monolith_client()
+
+    if period == 'date':
+        period = 'day'
+
+    def _get_data():
+        for result in client(field, start, end, interval=period):
+            yield {'date': result['date'].strftime('%Y-%m-%d'),
+                   'data': {origin: result['count']}}
+
+    # iter ?
+    return list(_get_data()), sorted(keys.values())
+
+
+#@memoize(prefix='global_stats', time=60 * 60)
+def _site_query(period, start, end, field):
+    if waffle.switch_is_active('monolith-stats'):
+        res = _monolith_site_query(period, start, end, field)
+        return res
+
+    # Cached lookup of the keys and the SQL.
+    # Taken from remora, a mapping of the old values.
+    keys = {
+        'addon_downloads_new': 'addons_downloaded',
+        'addon_total_updatepings': 'addons_in_use',
+        'addon_count_new': 'addons_created',
+        'apps_count_new': 'apps_count_new',
+        'apps_count_installed': 'apps_count_installed',
+        'apps_review_count_new': 'apps_review_count_new',
+        'mmo_user_count_new': 'mmo_user_count_new',
+        'mmo_user_count_total': 'mmo_user_count_total',
+        'webtrends_DailyVisitors': 'mmo_total_visitors',
+        'version_count_new': 'addons_updated',
+        'user_count_new': 'users_created',
+        'review_count_new': 'reviews_created',
+        'collection_count_new': 'collections_created',
+    }
+
     cursor = connection.cursor()
     # Let MySQL make this fast. Make sure we prevent SQL injection with the
     # assert.
@@ -547,7 +612,7 @@ def site_series(request, format, group, start, end, field):
     start, end = get_daterange_or_404(start, end)
     group = 'date' if group == 'day' else group
     series = []
-    full_series, keys = _site_query(group, start, end)
+    full_series, keys = _site_query(group, start, end, field)
     for row in full_series:
         if field in row['data']:
             series.append({
