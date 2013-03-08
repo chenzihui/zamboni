@@ -477,25 +477,28 @@ def _get_monolith_client():
     return _locals.monolith
 
 
-def _monolith_site_query(period, start, end, field):
-    # Cached lookup of the keys and the SQL.
-    # Taken from remora, a mapping of the old values.
-    keys = {
-        'addon_downloads_new': 'addons_downloaded',
-        'addon_total_updatepings': 'addons_in_use',
-        'addon_count_new': 'addons_created',
-        'apps_count_new': 'apps_count_new',
-        'apps_count_installed': 'apps_count_installed',
-        'apps_review_count_new': 'apps_review_count_new',
-        'mmo_user_count_new': 'mmo_user_count_new',
-        'mmo_user_count_total': 'mmo_user_count_total',
-        'webtrends_DailyVisitors': 'mmo_total_visitors',
-        'version_count_new': 'addons_updated',
-        'user_count_new': 'users_created',
-        'review_count_new': 'reviews_created',
-        'collection_count_new': 'collections_created',
-    }
+# Cached lookup of the keys and the SQL.
+# Taken from remora, a mapping of the old values.
+_KEYS = {
+    'addon_downloads_new': 'addons_downloaded',
+    'addon_total_updatepings': 'addons_in_use',
+    'addon_count_new': 'addons_created',
+    'apps_count_new': 'apps_count_new',
+    'apps_count_installed': 'apps_count_installed',
+    'apps_review_count_new': 'apps_review_count_new',
+    'mmo_user_count_new': 'mmo_user_count_new',
+    'mmo_user_count_total': 'mmo_user_count_total',
+    'webtrends_DailyVisitors': 'mmo_total_visitors',
+    'version_count_new': 'addons_updated',
+    'user_count_new': 'users_created',
+    'review_count_new': 'reviews_created',
+    'collection_count_new': 'collections_created',
+}
 
+_CACHED_KEYS = sorted(_KEYS.values())
+
+
+def _monolith_site_query(period, start, end, field):
     # conversion
     origin = field
     fields = {'mmo_total_visitors': 'visits',
@@ -518,32 +521,17 @@ def _monolith_site_query(period, start, end, field):
                    'data': {origin: result['count']}}
 
     # iter ?
-    return list(_get_data()), sorted(keys.values())
+    return list(_get_data()), _CACHED_KEYS
 
 
 #@memoize(prefix='global_stats', time=60 * 60)
 def _site_query(period, start, end, field):
-    if waffle.switch_is_active('monolith-stats'):
+    # not implemented yet in monolith
+    monolith = field != 'mmo_user_count_total'
+
+    if waffle.switch_is_active('monolith-stats') and monolith:
         res = _monolith_site_query(period, start, end, field)
         return res
-
-    # Cached lookup of the keys and the SQL.
-    # Taken from remora, a mapping of the old values.
-    keys = {
-        'addon_downloads_new': 'addons_downloaded',
-        'addon_total_updatepings': 'addons_in_use',
-        'addon_count_new': 'addons_created',
-        'apps_count_new': 'apps_count_new',
-        'apps_count_installed': 'apps_count_installed',
-        'apps_review_count_new': 'apps_review_count_new',
-        'mmo_user_count_new': 'mmo_user_count_new',
-        'mmo_user_count_total': 'mmo_user_count_total',
-        'webtrends_DailyVisitors': 'mmo_total_visitors',
-        'version_count_new': 'addons_updated',
-        'user_count_new': 'users_created',
-        'review_count_new': 'reviews_created',
-        'collection_count_new': 'collections_created',
-    }
 
     cursor = connection.cursor()
     # Let MySQL make this fast. Make sure we prevent SQL injection with the
@@ -557,11 +545,11 @@ def _site_query(period, start, end, field):
            "AND name IN (%s) "
            "GROUP BY %s(date), name "
            "ORDER BY %s(date) DESC;"
-           % (', '.join(['%s' for key in keys.keys()]), period, period))
-    cursor.execute(sql, [start, end] + keys.keys())
+           % (', '.join(['%s' for key in _KEYS.keys()]), period, period))
+    cursor.execute(sql, [start, end] + _KEYS.keys())
 
     # Process the results into a format that is friendly for render_*.
-    default = dict([(k, 0) for k in keys.values()])
+    default = dict([(k, 0) for k in _CACHED_KEYS])
     result = SortedDict()
     for name, date, count in cursor.fetchall():
         date = date.strftime('%Y-%m-%d')
@@ -571,7 +559,7 @@ def _site_query(period, start, end, field):
             result[date]['data'] = {}
         result[date]['data'][keys[name]] = count
 
-    return result.values(), sorted(keys.values())
+    return result.values(), _CACHED_KEYS
 
 
 def site(request, format, group, start=None, end=None):
