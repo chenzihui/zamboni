@@ -107,6 +107,11 @@ def get_series_line(model, group, primary_field=None, extra_fields=None,
     on top of date and count and can be seen in the output
     extra_values is a list of constant values added to each line
     """
+    if not extra_fields:
+        extra_fields = []
+
+    extra_values = extra_values or {}
+
     if waffle.switch_is_active('monolith-stats'):
         # monolith version.
         keys = {Installed: 'apps_installs'}
@@ -128,43 +133,39 @@ def get_series_line(model, group, primary_field=None, extra_fields=None,
                 res[extra_field] = result[extra_field]
             date_ = date(*result['date'].timetuple()[:3])
             res['end'] = res['date'] = date_
-            res.update(extra_values or {})
+            res.update(extra_values)
             yield res
+    else:
+        # Pull data out of ES
+        data = list((model.search().order_by('-date').filter(**filters)
+            .values_dict('date', 'count', primary_field, *extra_fields))[:365])
 
+        # Pad empty data with dummy dicts.
+        days = [datum['date'].date() for datum in data]
+        fields = []
+        if primary_field:
+            fields.append(primary_field)
+        if extra_fields:
+            fields += extra_fields
+        data += pad_missing_stats(days, group, filters.get('date__range'),
+                                  fields)
 
-    if not extra_fields:
-        extra_fields = []
+        # Sort in descending order.
+        data = sorted(data, key=lambda document: document['date'],
+                      reverse=True)
 
-    extra_values = extra_values or {}
-
-    # Pull data out of ES
-    data = list((model.search().order_by('-date').filter(**filters)
-          .values_dict('date', 'count', primary_field, *extra_fields))[:365])
-
-    # Pad empty data with dummy dicts.
-    days = [datum['date'].date() for datum in data]
-    fields = []
-    if primary_field:
-        fields.append(primary_field)
-    if extra_fields:
-        fields += extra_fields
-    data += pad_missing_stats(days, group, filters.get('date__range'), fields)
-
-    # Sort in descending order.
-    data = sorted(data, key=lambda document: document['date'], reverse=True)
-
-    # Generate dictionary with options from ES document
-    for val in data:
-        # Convert the datetimes to a date.
-        date_ = date(*val['date'].timetuple()[:3])
-        if primary_field and primary_field != 'count':
-            rv = dict(count=val[primary_field], date=date_, end=date_)
-        else:
-            rv = dict(count=val['count'], date=date_, end=date_)
-        for extra_field in extra_fields:
-            rv[extra_field] = val[extra_field]
-        rv.update(extra_values)
-        yield rv
+        # Generate dictionary with options from ES document
+        for val in data:
+            # Convert the datetimes to a date.
+            date_ = date(*val['date'].timetuple()[:3])
+            if primary_field and primary_field != 'count':
+                rv = dict(count=val[primary_field], date=date_, end=date_)
+            else:
+                rv = dict(count=val['count'], date=date_, end=date_)
+            for extra_field in extra_fields:
+                rv[extra_field] = val[extra_field]
+            rv.update(extra_values)
+            yield rv
 
 
 def get_series_column(model, primary_field=None, category_field=None,
