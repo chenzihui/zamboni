@@ -4,7 +4,6 @@ import itertools
 import time
 from types import GeneratorType
 from datetime import date, timedelta
-import threading
 
 from django import http
 from django.conf import settings
@@ -25,7 +24,7 @@ from addons.decorators import addon_view, addon_view_factory
 from addons.models import Addon
 from bandwagon.models import Collection
 from bandwagon.views import get_collection
-from monolith.client import Client as MonolithClient
+from lib.metrics import get_monolith_client
 
 import requests
 import waffle
@@ -466,16 +465,6 @@ def daterange(start_date, end_date):
         yield start_date + timedelta(n)
 
 
-def _get_monolith_client():
-    _locals = threading.local()
-    if not hasattr(_locals, 'monolith'):
-        server = settings.MONOLITH_SERVER
-        # XXX will use later
-        max_range = getattr(settings, 'MONOLITH_MAX_DATE_RANGE', 365)
-        _locals.monolith = MonolithClient(server)
-
-    return _locals.monolith
-
 
 # Cached lookup of the keys and the SQL.
 # Taken from remora, a mapping of the old values.
@@ -510,7 +499,7 @@ def _monolith_site_query(period, start, end, field):
     field = fields[field]
 
     # getting data from the monolith server
-    client = _get_monolith_client()
+    client = get_monolith_client()
 
     if period == 'date':
         period = 'day'

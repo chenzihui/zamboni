@@ -3,6 +3,7 @@ import re
 import urllib2
 from urlparse import urljoin
 import uuid
+import threading
 
 from django.conf import settings
 
@@ -10,6 +11,8 @@ from celeryutils import task
 import commonware.log
 
 from mkt.monolith import record_stat
+from monolith.client import Client as MonolithClient
+
 
 log = commonware.log.getLogger('z.metrics')
 
@@ -88,3 +91,14 @@ def metrics(uid, action, data, **kw):
                   % (response.getcode(), uid))
 
     return response.getcode()
+
+
+def get_monolith_client():
+    _locals = threading.local()
+    if not hasattr(_locals, 'monolith'):
+        server = settings.MONOLITH_SERVER
+        # XXX will use later
+        max_range = getattr(settings, 'MONOLITH_MAX_DATE_RANGE', 365)
+        _locals.monolith = MonolithClient(server)
+
+    return _locals.monolith
