@@ -7,11 +7,13 @@ from django.shortcuts import redirect
 
 import jingo
 from waffle.decorators import waffle_switch
+import waffle
 
 from access import acl
 import amo
 from amo.decorators import json_view, login_required
 from amo.urlresolvers import reverse
+from lib.metrics import get_monolith_client
 from mkt.inapp_pay.models import InappPayment
 from mkt.webapps.decorators import app_view, app_view_factory
 from mkt.webapps.models import Installed, Webapp
@@ -105,8 +107,34 @@ def get_series_line(model, group, primary_field=None, extra_fields=None,
     on top of date and count and can be seen in the output
     extra_values is a list of constant values added to each line
     """
+    if waffle.switch_is_active('monolith-stats'):
+        # monolith version.
+        keys = {Installed: 'apps_installs'}
+
+        # getting data from the monolith server
+        client = get_monolith_client()
+
+        field = keys[model]
+        addon_id = filters['addon']
+        start, end = filters['date__range']
+
+        if group == 'date':
+            group = 'day'
+
+        for result in client(field, start, end, interval=group,
+                             addon_id=addon_id):
+            res = {'count': result['count']}
+            for extra_field in extra_fields:
+                res[extra_field] = result[extra_field]
+            date_ = date(*result['date'].timetuple()[:3])
+            res['end'] = res['date'] = date_
+            res.update(extra_values or {})
+            yield res
+
+
     if not extra_fields:
         extra_fields = []
+
     extra_values = extra_values or {}
 
     # Pull data out of ES
@@ -212,6 +240,7 @@ def overview_series(request, addon, group, start, end, format):
     """
     Combines installs_series and usage_series into one payload.
     """
+
     date_range = check_series_params_or_404(group, start, end, format)
     check_stats_permission(request, addon)
 
