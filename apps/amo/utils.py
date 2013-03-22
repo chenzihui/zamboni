@@ -85,7 +85,6 @@ def urlparams(url_, hash=None, **query):
 
 def isotime(t):
     """Date/Time format according to ISO 8601"""
-    return
     if not hasattr(t, 'tzinfo'):
         return
     return _append_tz(t).astimezone(pytz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -99,7 +98,6 @@ def epoch(t):
 
 
 def _append_tz(t):
-    return t
     tz = pytz.timezone(settings.TIME_ZONE)
     return tz.localize(t)
 
