@@ -513,7 +513,7 @@ def _monolith_site_query(period, start, end, field):
     return list(_get_data()), _CACHED_KEYS
 
 
-#@memoize(prefix='global_stats', time=60 * 60)
+@memoize(prefix='global_stats', time=60 * 60)
 def _site_query(period, start, end, field):
     # not implemented yet in monolith
     monolith = field != 'mmo_user_count_total'
