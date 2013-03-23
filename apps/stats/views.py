@@ -464,8 +464,6 @@ def daterange(start_date, end_date):
     for n in range((end_date - start_date).days):
         yield start_date + timedelta(n)
 
-
-
 # Cached lookup of the keys and the SQL.
 # Taken from remora, a mapping of the old values.
 _KEYS = {
@@ -493,8 +491,9 @@ def _monolith_site_query(period, start, end, field):
     fields = {'mmo_total_visitors': 'visits',
               'apps_count_installed': 'app_installs',
               'apps_review_count_new': 'review_count',
-              'mmo_user_count_new': 'user_count',
-              'apps_count_new': 'app_count'}
+              'mmo_user_count_new': 'new_user_count',
+              'apps_count_new': 'app_count',
+              'mmo_user_count_total': 'total_user_count'}
 
     field = fields[field]
 
@@ -515,10 +514,7 @@ def _monolith_site_query(period, start, end, field):
 
 @memoize(prefix='global_stats', time=60 * 60)
 def _site_query(period, start, end, field):
-    # not implemented yet in monolith
-    monolith = field != 'mmo_user_count_total'
-
-    if waffle.switch_is_active('monolith-stats') and monolith:
+    if waffle.switch_is_active('monolith-stats'):
         res = _monolith_site_query(period, start, end, field)
         return res
 
@@ -546,7 +542,7 @@ def _site_query(period, start, end, field):
             result[date] = default.copy()
             result[date]['date'] = date
             result[date]['data'] = {}
-        result[date]['data'][keys[name]] = count
+        result[date]['data'][_KEYS[name]] = count
 
     return result.values(), _CACHED_KEYS
 
